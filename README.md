@@ -40,10 +40,10 @@ func NAME(){
 		req.URL.RawQuery = pretty.Sprintf(`xxxx`, i)
 		temp = sreq.AddQueue(temp, &sreq.Request{Req: req, DataRet: rune(i)})
 	}
-	tempdata := []sreq.ChannelResult{}
-	sreq.Sends(temp, Proxy, false, 20, func(c sreq.ChannelResult) {
+	tempdata := []sreq.DataHandler{}
+	sreq.Sends(temp, Proxy, false, 20, func(c sreq.DataHandler) {
 		if c.Resp.StatusCode == 404 {
-			tempdata = sreq.SPrintln(tempdata, c)
+			tempdata = sreq.Append(tempdata, c)
 		}
 	})
 	for _, v := range tempdata {
