@@ -232,7 +232,7 @@ func UnzipResp(resp *http.Response) string {
 
 // Process with worker
 
-type ChannelResult struct {
+type DataHandler struct {
 	Index   int
 	Resp    *http.Response
 	Req     *http.Request
@@ -253,7 +253,7 @@ type Request struct {
 
 var Check bool
 
-func Sends(req []*Request, proxy string, redirect bool, worker int, f func(c ChannelResult)) {
+func Sends(req []*Request, proxy string, redirect bool, worker int, f func(c DataHandler)) {
 	Check = false
 	jar, err := cookiejar.New(nil)
 	if err != nil {
@@ -275,7 +275,7 @@ func Sends(req []*Request, proxy string, redirect bool, worker int, f func(c Cha
 					} else {
 						resp, timeresp = SpawnRequest(r.req, proxy, redirect, jar)
 					}
-					f(ChannelResult{r.index, resp, r.req, timeresp, r.dataret})
+					f(DataHandler{r.index, resp, r.req, timeresp, r.dataret})
 				} else {
 					break
 				}
@@ -297,10 +297,10 @@ func AddQueue(req []*Request, tempreq *Request) []*Request {
 }
 
 // Insert new node to array and sort by Index
-func SPrintln(data []ChannelResult, temp ChannelResult) []ChannelResult {
+func Append(data []DataHandler, temp DataHandler) []DataHandler {
 	//Append temp to data and sort with data.Index
 	index := sort.Search(len(data), func(i int) bool { return data[i].Index >= temp.Index })
-	data = append(data, ChannelResult{})
+	data = append(data, DataHandler{})
 	copy(data[index+1:], data[index:])
 	data[index] = temp
 	return data
