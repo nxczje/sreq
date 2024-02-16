@@ -11,8 +11,8 @@ import (
 	"strings"
 
 	"github.com/kr/pretty"
-	"github.com/nxczje/SimpReqGo/pkg/features"
-	"github.com/nxczje/SimpReqGo/pkg/sreq"
+	"github.com/nxczje/sreq/feature"
+	"github.com/nxczje/sreq"
 )
 
 const (
