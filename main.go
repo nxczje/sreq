@@ -88,7 +88,7 @@ func NewTransport(proxy string) *CustomTransport {
 	return tr
 }
 
-func SpawnRequest(request *http.Request, proxy string, redirect bool, jar *cookiejar.Jar) (*http.Response, time.Duration) {
+func spawnRequest(request *http.Request, proxy string, redirect bool, jar *cookiejar.Jar) (*http.Response, time.Duration) {
 	tr := NewTransport(proxy)
 	client := &http.Client{}
 	if jar == nil {
@@ -164,7 +164,7 @@ func BodyFileUpload(fileUpload FileParam, Params ...ParamInUploadFile) (*bytes.B
 	return body, multipartWriter.FormDataContentType()
 }
 
-func FileUpload(request *http.Request, multipath string, proxy string, redirect bool, jar *cookiejar.Jar) (*http.Response, time.Duration) {
+func fileUpload(request *http.Request, multipath string, proxy string, redirect bool, jar *cookiejar.Jar) (*http.Response, time.Duration) {
 	tr := NewTransport(proxy)
 	client := &http.Client{}
 	if jar == nil {
@@ -271,9 +271,9 @@ func Sends(req []*Request, proxy string, redirect bool, worker int, f func(c Dat
 			for r := range workerChannels[i] {
 				if !Check {
 					if strings.Contains(r.req.Header.Get("Content-Type"), "multipart/form-data") {
-						resp, timeresp = FileUpload(r.req, r.req.Header.Get("Content-Type"), proxy, redirect, jar)
+						resp, timeresp = fileUpload(r.req, r.req.Header.Get("Content-Type"), proxy, redirect, jar)
 					} else {
-						resp, timeresp = SpawnRequest(r.req, proxy, redirect, jar)
+						resp, timeresp = spawnRequest(r.req, proxy, redirect, jar)
 					}
 					f(DataHandler{r.index, resp, r.req, timeresp, r.dataret})
 				} else {

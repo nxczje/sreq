@@ -106,3 +106,19 @@ func SingleLine(data string) string {
 	result = strings.ReplaceAll(result, "\n", "")
 	return result
 }
+
+func WriteFile(filename string, data []byte) error {
+	err := os.WriteFile(filename, data, os.ModePerm)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func ReadFile(filename string) (string, error) {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}

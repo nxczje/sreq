@@ -21,7 +21,7 @@ const (
 )
 
 func NAME(){
-	req, _ := http.NewRequest("GET", target, nil)
+	req, _ := http.NewRequest("GET", Target, nil)
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 6.1; rv:52.0) Gecko/20100101 Firefox/52.0")
 	req.URL.Path = "/ATutor/mods/_standard/social/index_public.php"
 	//if POST
