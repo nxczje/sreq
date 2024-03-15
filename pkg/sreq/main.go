@@ -1,6 +1,7 @@
 package sreq
 
 import (
+	"bufio"
 	"bytes"
 	"compress/flate"
 	"compress/gzip"
@@ -18,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/kr/pretty"
 )
 
@@ -127,17 +129,19 @@ func spawnRequest(request *http.Request, proxy string, redirect bool, jar *cooki
 	return resp, tr.Duration()
 }
 
-// Process Upload File
+// Process Upload File with more param
 type ParamInUploadFile struct {
 	ParamName  string
 	ParamValue string
 }
 
+// Process Upload File with file
 type FileParam struct {
-	NameOfParam string
-	FileName    string
+	NameOfParam string //param of filename
+	FileName    string //filename to open
 }
 
+// Process Upload file body in Post request
 func BodyFileUpload(fileUpload FileParam, Params ...ParamInUploadFile) (*bytes.Buffer, string) {
 	file, err := os.Open(fileUpload.FileName)
 	if err != nil {
@@ -230,30 +234,50 @@ func UnzipResp(resp *http.Response) string {
 	return string(bodyBytes)
 }
 
-// Process with worker
-
+// Data of response store
 type DataHandler struct {
-	Index   int
+	index   int
 	Resp    *http.Response
 	Req     *http.Request
 	Time    time.Duration
-	DataRet rune
+	DataRet []rune
 }
 
 type indexOfWorker struct {
-	index   int
-	req     *http.Request
-	dataret rune
+	index    int
+	req      *http.Request
+	redirect bool
+	dataret  []rune
 }
 
+// Create Request to worker
 type Request struct {
-	Req     *http.Request
-	DataRet rune
+	Req      *http.Request
+	Redirect bool   // default false
+	DataRet  []rune // default nil
 }
 
+// Check = True to stop workerpool
 var Check bool
 
-func Sends(req []*Request, proxy string, redirect bool, worker int, f func(c DataHandler)) {
+// One worker send request
+func Send(req *Request, proxy string) DataHandler {
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	resp := &http.Response{}
+	timeresp := time.Duration(0)
+	if strings.Contains(req.Req.Header.Get("Content-Type"), "multipart/form-data") {
+		resp, timeresp = fileUpload(req.Req, req.Req.Header.Get("Content-Type"), proxy, req.Redirect, jar)
+	} else {
+		resp, timeresp = spawnRequest(req.Req, proxy, req.Redirect, jar)
+	}
+	return DataHandler{0, resp, req.Req, timeresp, nil}
+}
+
+// Multi worker to send request
+func Sends(req []*Request, proxy string, worker int, f func(c DataHandler)) {
 	Check = false
 	jar, err := cookiejar.New(nil)
 	if err != nil {
@@ -271,9 +295,9 @@ func Sends(req []*Request, proxy string, redirect bool, worker int, f func(c Dat
 			for r := range workerChannels[i] {
 				if !Check {
 					if strings.Contains(r.req.Header.Get("Content-Type"), "multipart/form-data") {
-						resp, timeresp = fileUpload(r.req, r.req.Header.Get("Content-Type"), proxy, redirect, jar)
+						resp, timeresp = fileUpload(r.req, r.req.Header.Get("Content-Type"), proxy, r.redirect, jar)
 					} else {
-						resp, timeresp = spawnRequest(r.req, proxy, redirect, jar)
+						resp, timeresp = spawnRequest(r.req, proxy, r.redirect, jar)
 					}
 					f(DataHandler{r.index, resp, r.req, timeresp, r.dataret})
 				} else {
@@ -283,7 +307,7 @@ func Sends(req []*Request, proxy string, redirect bool, worker int, f func(c Dat
 		}(i)
 	}
 	for i, v := range req {
-		workerChannels[i%worker] <- &indexOfWorker{i, v.Req, v.DataRet}
+		workerChannels[i%worker] <- &indexOfWorker{i, v.Req, v.Redirect, v.DataRet}
 	}
 	for _, workerCh := range workerChannels {
 		close(workerCh)
@@ -291,17 +315,136 @@ func Sends(req []*Request, proxy string, redirect bool, worker int, f func(c Dat
 	wg.Wait()
 }
 
+// Add queue to run workerpool
 func AddQueue(req []*Request, tempreq *Request) []*Request {
-	req = append(req, &Request{tempreq.Req.Clone(tempreq.Req.Context()), tempreq.DataRet})
+	req = append(req, &Request{tempreq.Req.Clone(tempreq.Req.Context()), tempreq.Redirect, tempreq.DataRet})
 	return req
 }
 
 // Insert new node to array and sort by Index
 func Append(data []DataHandler, temp DataHandler) []DataHandler {
 	//Append temp to data and sort with data.Index
-	index := sort.Search(len(data), func(i int) bool { return data[i].Index >= temp.Index })
+	index := sort.Search(len(data), func(i int) bool { return data[i].index >= temp.index })
 	data = append(data, DataHandler{})
 	copy(data[index+1:], data[index:])
 	data[index] = temp
 	return data
+}
+
+// Set cookie for request
+func SetCookie(req *http.Request, cookies []*http.Cookie) *http.Request {
+	if len(cookies) == 0 {
+		return req
+	} else {
+		for _, cookie := range cookies {
+			req.AddCookie(cookie)
+		}
+		return req
+	}
+}
+
+// Create connection WS
+//
+// for use ft -> template func to create request with input and format data return string
+//
+// f -> function to handle response
+//
+// Example
+//
+//	sreq.ConnectWS(url, func(input string) string {
+//			sreq.ConnectWS(url, func(input string) string {
+//			req := //somethings
+//			return string(req)
+//		}, func(conn *websocket.Conn) {
+//			for {
+//				_, message, err := conn.ReadMessage()
+//				if err != nil {
+//					log.Println("read:", err)
+//					return
+//				}
+//				//worksomething
+//			}
+//		})
+func ConnectWS(urlStr string, ft func(input string) string, f func(conn *websocket.Conn)) {
+	dialer := &websocket.Dialer{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	conn, _, err := dialer.Dial(urlStr, nil)
+	if err != nil {
+		log.Fatal("dial:", err)
+	}
+	defer conn.Close()
+	go f(conn)
+	scanner := bufio.NewScanner(os.Stdin)
+	for scanner.Scan() {
+		text := scanner.Text()
+		data := ft(text)
+		err := conn.WriteMessage(websocket.TextMessage, []byte(data))
+		if err != nil {
+			log.Println("write:", err)
+			return
+		}
+	}
+}
+
+// Parse request from file raw
+//
+// url have http:// or https://
+func ParseReqFile(filename string, url string) *http.Request {
+	var header_collection_done bool
+	headerMap := make(map[string]string)
+	Post_data := ""
+	var (
+		method string
+		path   string
+		query  string
+	)
+	f, err := os.OpenFile(filename, os.O_RDONLY, os.ModePerm)
+	if err != nil {
+		log.Fatalf("Open file error: %v", err)
+	}
+	defer f.Close()
+
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		if !header_collection_done {
+			if sc.Text() == "" {
+				header_collection_done = true
+			} else {
+				substrings := strings.Split(sc.Text(), ":")
+				if len(substrings) < 2 {
+					temp := strings.Split(sc.Text(), " ")
+					method = temp[0]
+					if strings.Contains(temp[1], "?") {
+						temp_query := strings.Split(temp[1], "?")
+						path = temp_query[0]
+						query = temp_query[1]
+					} else {
+						path = temp[1]
+					}
+				} else if len(substrings) > 2 {
+					headerMap[substrings[0]] = strings.Trim(strings.Join(substrings[1:], ":"), " ")
+				} else {
+					headerMap[substrings[0]] = strings.Trim(substrings[1], " ")
+				}
+			}
+		} else {
+			Post_data = Post_data + sc.Text()
+		}
+	}
+	f.Close()
+	if err := sc.Err(); err != nil {
+		log.Fatalf("Scan file error: %v", err)
+	}
+	// req, err := http.NewRequest(method, path+"?"+query, strings.NewReader(Post_data))
+	req, err := http.NewRequest(method, url, strings.NewReader(Post_data))
+	req.URL.Path = path
+	req.URL.RawQuery = query
+	if err != nil {
+		log.Fatal(err)
+	}
+	for key, value := range headerMap {
+		req.Header.Set(key, value)
+	}
+	return req
 }
