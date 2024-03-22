@@ -35,8 +35,10 @@ Use one worker for same session
 ```
 
 ### Workerpool
-Same step by step but edit worker
-but result u need to sort if u using handler
+Same step by step but edit worker but result u need to sort if u using handler
+
+Use sreq.Append for sort index loop sending and get result. But if you using segment loop. Index restart to 1. U can't use sort to get result
+
 
 ```
 	tempdata := []sreq.DataHandler{}
