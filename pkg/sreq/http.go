@@ -19,7 +19,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/kr/pretty"
 )
 
@@ -340,50 +339,6 @@ func SetCookie(req *http.Request, cookies []*http.Cookie) *http.Request {
 			req.AddCookie(cookie)
 		}
 		return req
-	}
-}
-
-// Create connection WS
-//
-// for use ft -> template func to create request with input and format data return string
-//
-// f -> function to handle response
-//
-// Example
-//
-//	sreq.ConnectWS(url, func(input string) string {
-//			sreq.ConnectWS(url, func(input string) string {
-//			req := //somethings
-//			return string(req)
-//		}, func(conn *websocket.Conn) {
-//			for {
-//				_, message, err := conn.ReadMessage()
-//				if err != nil {
-//					log.Println("read:", err)
-//					return
-//				}
-//				//worksomething
-//			}
-//		})
-func ConnectWS(urlStr string, ft func(input string) string, f func(conn *websocket.Conn)) {
-	dialer := &websocket.Dialer{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-	conn, _, err := dialer.Dial(urlStr, nil)
-	if err != nil {
-		log.Fatal("dial:", err)
-	}
-	defer conn.Close()
-	go f(conn)
-	scanner := bufio.NewScanner(os.Stdin)
-	for scanner.Scan() {
-		text := scanner.Text()
-		data := ft(text)
-		err := conn.WriteMessage(websocket.TextMessage, []byte(data))
-		if err != nil {
-			log.Println("write:", err)
-			return
-		}
 	}
 }
 

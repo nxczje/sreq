@@ -35,10 +35,8 @@ Use one worker for same session
 ```
 
 ### Workerpool
-Same step by step but edit worker but result u need to sort if u using handler
-
-Use sreq.Append for sort index loop sending and get result. But if you using segment loop. Index restart to 1. U can't use sort to get result
-
+Like step but edit worker is 10-50.
+if u send all and check result to end process u want to sort
 
 ```
 	tempdata := []sreq.DataHandler{}
@@ -51,6 +49,18 @@ Use sreq.Append for sort index loop sending and get result. But if you using seg
 	})
 	for _, v := range tempdata {
 		result = result + string(v.DataRet)
+	}
+```
+
+If u not want to sort. Handle with segment loop
+
+```
+result :=
+for xxx:
+	....
+	sreq.Send(){
+		handle here
+		result += string(x)
 	}
 ```
 
@@ -68,20 +78,14 @@ Running server with time seconds and use goroutine to process before server tcp 
 
 ### Connect websocket
 ```
-	sreq.ConnectWS(url, func(input string) string {
-			sreq.ConnectWS(url, func(input string) string {
-			req := //somethings
-			return string(req)
-		}, func(conn *websocket.Conn) {
-			for {
-				_, message, err := conn.ReadMessage()
-				if err != nil {
-					log.Println("read:", err)
-					return
-				}
-				//worksomething
-			}
-		})
+	arrWs := []sreq.Socket{}
+	for i := 0; i < 100; i++ {
+		temp := pretty.Sprintf("42[\"newChatMessage\",{\"msg\":\"%d\"}]", i)
+		arrWs = sreq.AddqueueWs(arrWs, sreq.Socket{Data2Send: temp})
+	}
+	sreq.SendWS(Socket, arrWs, 10, func(ws sreq.HandleWs) {
+		pretty.Println(ws.TimeRes.Seconds())
+	})
 ```
 
 ### Create request from raw request
