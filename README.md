@@ -76,7 +76,7 @@ Running server with time seconds and use goroutine to process before server tcp 
 	server.Run(5)
 ```
 
-### Connect websocket
+### Connect websocket with workerpool
 ```
 	arrWs := []sreq.Socket{}
 	for i := 0; i < 100; i++ {
@@ -86,6 +86,24 @@ Running server with time seconds and use goroutine to process before server tcp 
 	sreq.SendWS(Socket, arrWs, 10, func(ws sreq.HandleWs) {
 		pretty.Println(ws.TimeRes.Seconds())
 	})
+```
+
+### Connect Websocket with input from command line
+```
+	sreq.ConnectWS(url, func(input string) string {
+			sreq.ConnectWS(url, func(input string) string {
+			req := //somethings format input (input is text from command line)
+			return string(req)
+		}, func(conn *websocket.Conn) {
+			for {
+				_, message, err := conn.ReadMessage()
+				if err != nil {
+					log.Println("read:", err)
+					return
+				}
+				//worksomething
+			}
+		})
 ```
 
 ### Create request from raw request
